@@ -19,3 +19,10 @@ config:
   # сюди ми на наступному кроці перенесемо env з теми 4
   DEBUG: "False"
   DJANGO_SECRET_KEY: "replace_me"
+
+postgres:
+  POSTGRES_DB: app_db
+  POSTGRES_USER: app_user
+  POSTGRES_PASSWORD: app_password
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
