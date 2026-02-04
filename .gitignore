@@ -1,0 +1,16 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Secrets
+*.csv
+*.env
+*.pem
+
+# Archives
+*.zip
+
+# OS / IDE
+.vscode/
+.DS_Store
