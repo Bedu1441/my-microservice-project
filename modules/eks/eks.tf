@@ -1,10 +1,16 @@
-data "aws_subnets" "default" {
+# --- Default VPC + all its subnets (across multiple AZs) ---
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default_vpc" {
   filter {
-    name   = "default-for-az"
-    values = ["true"]
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
   }
 }
 
+# --- Cluster role ---
 resource "aws_iam_role" "eks_cluster_role" {
   name = "${var.cluster_name}-cluster-role"
 
@@ -28,7 +34,7 @@ resource "aws_eks_cluster" "this" {
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
-    subnet_ids = data.aws_subnets.default.ids
+    subnet_ids = data.aws_subnets.default_vpc.ids
   }
 
   depends_on = [aws_iam_role_policy_attachment.eks_cluster_policy]
@@ -67,7 +73,7 @@ resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.cluster_name}-ng"
   node_role_arn   = aws_iam_role.eks_node_role.arn
-  subnet_ids      = data.aws_subnets.default.ids
+  subnet_ids      = data.aws_subnets.default_vpc.ids
 
   instance_types = [var.node_instance_type]
 
