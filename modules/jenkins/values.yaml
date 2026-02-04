@@ -1,0 +1,61 @@
+controller:
+  serviceType: LoadBalancer
+
+  persistence:
+    enabled: true
+    storageClass: gp2
+    size: 8Gi
+
+  installPlugins:
+    - kubernetes:4306.vc91e951ea_eb_d
+    - workflow-aggregator:600.vb_57cdd26fdd7
+    - git:5.7.0
+    - configuration-as-code:1897.v79281e066ea_7
+    - credentials-binding:681.vf91669a_32e45
+
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      kubernetes-cloud: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                serverUrl: "https://kubernetes.default"
+                namespace: "jenkins"
+                jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+                jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+                containerCapStr: "10"
+                skipTlsVerify: true
+                credentialsId: ""
+                templates:
+                  - name: "kaniko"
+                    label: "kaniko"
+                    serviceAccount: "jenkins-agent"
+                    yaml: |
+                      apiVersion: v1
+                      kind: Pod
+                      spec:
+                        serviceAccountName: jenkins-agent
+                        containers:
+                        - name: kaniko
+                          image: gcr.io/kaniko-project/executor:latest
+                          command:
+                          - sleep
+                          args:
+                          - infinity
+                          volumeMounts:
+                          - name: docker-config
+                            mountPath: /kaniko/.docker
+                        - name: tools
+                          image: alpine:3.20
+                          command:
+                          - sleep
+                          args:
+                          - infinity
+                        volumes:
+                        - name: docker-config
+                          emptyDir: {}
+
+agent:
+  enabled: true
