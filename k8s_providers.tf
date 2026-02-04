@@ -19,20 +19,31 @@ data "aws_eks_cluster" "this" {
   name = module.eks.cluster_name
 }
 
-data "aws_eks_cluster_auth" "this" {
-  name = module.eks.cluster_name
+locals {
+  eks_host = data.aws_eks_cluster.this.endpoint
+  eks_ca   = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
 }
 
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.this.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.this.token
+  host                   = local.eks_host
+  cluster_ca_certificate = local.eks_ca
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--region", "us-east-1", "--cluster-name", module.eks.cluster_name]
+  }
 }
 
 provider "helm" {
   kubernetes = {
-    host                   = data.aws_eks_cluster.this.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.this.token
+    host                   = local.eks_host
+    cluster_ca_certificate = local.eks_ca
+
+    exec = {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--region", "us-east-1", "--cluster-name", module.eks.cluster_name]
+    }
   }
 }
