@@ -1,4 +1,4 @@
-# --- Default VPC + all its subnets (across multiple AZs) ---
+# --- Default VPC + subnets, excluding unsupported AZs (e.g., us-east-1e) ---
 data "aws_vpc" "default" {
   default = true
 }
@@ -8,6 +8,18 @@ data "aws_subnets" "default_vpc" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
+}
+
+data "aws_subnet" "subnet" {
+  for_each = toset(data.aws_subnets.default_vpc.ids)
+  id       = each.value
+}
+
+locals {
+  supported_subnet_ids = [
+    for s in data.aws_subnet.subnet :
+    s.id if !contains(var.excluded_azs, s.availability_zone)
+  ]
 }
 
 # --- Cluster role ---
@@ -34,7 +46,7 @@ resource "aws_eks_cluster" "this" {
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
-    subnet_ids = data.aws_subnets.default_vpc.ids
+   subnet_ids = local.supported_subnet_ids
   }
 
   depends_on = [aws_iam_role_policy_attachment.eks_cluster_policy]
@@ -73,7 +85,7 @@ resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.cluster_name}-ng"
   node_role_arn   = aws_iam_role.eks_node_role.arn
-  subnet_ids      = data.aws_subnets.default_vpc.ids
+  subnet_ids      = local.supported_subnet_ids
 
   instance_types = [var.node_instance_type]
 

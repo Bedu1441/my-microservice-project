@@ -27,3 +27,8 @@ variable "max_size" {
   type    = number
   default = 3
 }
+
+variable "excluded_azs" {
+  type    = list(string)
+  default = ["us-east-1e"]
+}
