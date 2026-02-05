@@ -20,15 +20,16 @@ resource "helm_release" "jenkins" {
 
   values = [file("${path.module}/values.yaml")]
 
-  set {
-    name  = "controller.persistence.storageClass"
-    value = "gp2"
-  }
-
-  set {
-    name  = "controller.persistence.size"
-    value = "8Gi"
-  }
+  set = [
+    { 
+        name  = "controller.persistence.storageClass"
+        value = "gp2"
+    },
+    {
+        name  = "controller.persistence.size"
+        value = "8Gi"
+    }
+  ]
 
   timeout = 1800
 

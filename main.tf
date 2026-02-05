@@ -11,3 +11,7 @@ module "argo_cd" {
   cluster_name = module.eks.cluster_name
   region       = "us-east-1"
 }
+
+module "jenkins" {
+  source = "./modules/jenkins"
+}

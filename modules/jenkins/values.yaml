@@ -1,17 +1,21 @@
 controller:
   serviceType: LoadBalancer
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 0
 
   persistence:
     enabled: true
-    storageClass: gp2
+    storageClass: gp3-csi
     size: 8Gi
 
   installPlugins:
-    - kubernetes:4306.vc91e951ea_eb_d
-    - workflow-aggregator:600.vb_57cdd26fdd7
-    - git:5.7.0
-    - configuration-as-code:1897.v79281e066ea_7
-    - credentials-binding:681.vf91669a_32e45
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - credentials-binding
 
   JCasC:
     defaultConfig: true
