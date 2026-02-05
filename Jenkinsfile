@@ -1,7 +1,8 @@
 pipeline {
   agent {
     kubernetes {
-      defaultContainer 'jnlp'
+      // важливо: shell/checkout/git-команди мають йти в контейнер з git + sh
+      defaultContainer 'git'
       yaml """
 apiVersion: v1
 kind: Pod
@@ -24,9 +25,22 @@ spec:
       volumeMounts:
         - name: workspace-volume
           mountPath: /home/jenkins/agent
-    - name: kaniko
-      image: gcr.io/kaniko-project/executor:v1.23.2
+
+    # контейнер з AWS CLI — щоб зробити ECR login і записати Docker config для Kaniko
+    - name: aws
+      image: amazon/aws-cli:2.15.30
       command: ["sh", "-c", "cat"]
+      tty: true
+      volumeMounts:
+        - name: workspace-volume
+          mountPath: /home/jenkins/agent
+        - name: docker-config
+          mountPath: /kaniko/.docker
+
+    # ✅ Kaniko debug: є busybox; команда /busybox/cat щоб контейнер жив
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:v1.23.2-debug
+      command: ["/busybox/cat"]
       tty: true
       env:
         - name: DOCKER_CONFIG
@@ -46,7 +60,8 @@ spec:
 
     // ECR repo (має існувати)
     ECR_REPO_NAME     = "django-app"
-    ECR_REPO_URI      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}"
+    ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+    ECR_REPO_URI      = "${ECR_REGISTRY}/${ECR_REPO_NAME}"
 
     // Helm repo (GitOps)
     HELM_REPO_URL     = "github.com/Bedu1441/my-microservice-helm.git"
@@ -66,19 +81,41 @@ spec:
 
     stage("Checkout app repo") {
       steps {
+        // checkout робиться в defaultContainer 'git'
         checkout scm
       }
     }
 
     stage("Build & Push to ECR (Kaniko)") {
       steps {
-        container('kaniko') {
-          script {
-            def shortSha = sh(script: "git rev-parse --short=8 HEAD", returnStdout: true).trim()
-            def tag = "${shortSha}-${env.BUILD_NUMBER}"
-            writeFile file: "image_tag.env", text: "IMAGE_TAG=${tag}\n"
-            echo "Image tag: ${tag}"
+        script {
+          // git є в контейнері git (default)
+          def shortSha = sh(script: "git rev-parse --short=8 HEAD", returnStdout: true).trim()
+          def tag = "${shortSha}-${env.BUILD_NUMBER}"
+          writeFile file: "image_tag.env", text: "IMAGE_TAG=${tag}\n"
+          echo "Image tag: ${tag}"
 
+          // 1) Робимо ECR login і пишемо /kaniko/.docker/config.json у спільний volume
+          container('aws') {
+            withCredentials([usernamePassword(credentialsId: 'aws-ecr', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+              sh """
+                set -e
+                mkdir -p /kaniko/.docker
+
+                PASS=\$(aws ecr get-login-password --region ${AWS_REGION})
+                AUTH=\$(printf "AWS:%s" "\$PASS" | base64 | tr -d '\\n')
+
+                cat > /kaniko/.docker/config.json <<EOF
+{"auths":{"${ECR_REGISTRY}":{"auth":"\$AUTH"}}}
+EOF
+
+                echo "Wrote Docker config for ${ECR_REGISTRY}"
+              """
+            }
+          }
+
+          // 2) Kaniko build+push (без shell вимог, бо /kaniko/executor напряму)
+          container('kaniko') {
             withCredentials([usernamePassword(credentialsId: 'aws-ecr', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
               sh """
                 set -e
@@ -86,9 +123,7 @@ spec:
                   --context \$(pwd) \
                   --dockerfile Dockerfile \
                   --destination ${ECR_REPO_URI}:${tag} \
-                  --destination ${ECR_REPO_URI}:latest \
-                  --cache=true \
-                  --cache-repo ${ECR_REPO_URI}-cache
+                  --destination ${ECR_REPO_URI}:latest
               """
             }
           }
