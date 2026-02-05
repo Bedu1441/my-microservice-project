@@ -64,6 +64,8 @@ Developer → Git push → Jenkins → ECR → Helm repo → Argo CD → Kuberne
   - AWS CLI
 - GitHub Personal Access Token (PAT)
 
+Використання DynamoDB у проєкті - Amazon DynamoDB не використовується як база даних застосунку. Згадується та може застосовуватися виключно для Terraform state locking у випадку використання remote backend з Amazon S3. Це дозволяє запобігти одночасному виконанню terraform apply та пошкодженню state-файлу в командному середовищі. У рамках проєкту: Terraform state може зберігатися локально або в S3 без блокування; DynamoDB не є обовʼязковим компонентом для роботи CI/CD pipeline; Jenkins, Argo CD та GitOps workflow не залежать від DynamoDB.
+За необхідності проєкт розширюється використанням DynamoDB для Terraform state locking.
 
 ## Розгортання інфраструктури
 
